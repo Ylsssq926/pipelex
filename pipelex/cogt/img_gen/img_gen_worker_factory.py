@@ -1,6 +1,7 @@
 import importlib.util
 from typing import TYPE_CHECKING
 
+from pipelex import log
 from pipelex.cogt.img_gen.img_gen_worker_abstract import ImgGenWorkerAbstract
 from pipelex.cogt.model_backends.model_spec import InferenceModelSpec
 from pipelex.exceptions import MissingDependencyError
@@ -25,6 +26,7 @@ class ImgGenWorkerFactory:
     ) -> ImgGenWorkerAbstract:
         plugin = Plugin.make_for_inference_model(inference_model=inference_model)
         backend = get_models_manager().get_required_inference_backend(inference_model.backend_name)
+        log.debug(f"Making img gen worker with backend: {backend.name}")
         plugin_sdk_registry = get_plugin_manager().plugin_sdk_registry
         img_gen_worker: ImgGenWorkerAbstract
         match plugin.sdk:
@@ -94,10 +96,11 @@ class ImgGenWorkerFactory:
                     inference_model=inference_model,
                     reporting_delegate=reporting_delegate,
                 )
-            case "openai_img_gen":
+            case "openai_img_gen" | "gateway_openai_img_gen":
                 from pipelex.plugins.openai.openai_client_factory import OpenAIClientFactory  # noqa: PLC0415
                 from pipelex.plugins.openai.openai_img_gen_worker import OpenAIImgGenWorker  # noqa: PLC0415
 
+                log.debug(f"Making OpenAI client with endpoint: {backend.endpoint}")
                 img_gen_sdk_instance = plugin_sdk_registry.get_sdk_instance(plugin=plugin) or plugin_sdk_registry.set_sdk_instance(
                     plugin=plugin,
                     sdk_instance=OpenAIClientFactory.make_openai_client(

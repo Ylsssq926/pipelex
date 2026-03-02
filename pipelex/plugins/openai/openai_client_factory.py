@@ -19,6 +19,7 @@ class OpenAISdkVariant(StrEnum):
     OPENAI_IMG_GEN = "openai_img_gen"
     BLACKBOXAI_IMG_GEN = "blackboxai_img_gen"
     OPENROUTER_IMG_GEN = "openrouter_img_gen"
+    GATEWAY_OPENAI_IMG_GEN = "gateway_openai_img_gen"
 
 
 class AzureExtraField(StrEnum):
@@ -46,8 +47,8 @@ class OpenAIClientFactory:
 
         the_client: openai.AsyncOpenAI
         match sdk_variant:
-            case OpenAISdkVariant.AZURE_OPENAI | OpenAISdkVariant.AZURE_OPENAI_RESPONSES:
-                log.verbose(f"Making AsyncOpenAI client with endpoint: {backend.endpoint}")
+            case OpenAISdkVariant.AZURE_OPENAI | OpenAISdkVariant.AZURE_OPENAI_RESPONSES | OpenAISdkVariant.GATEWAY_OPENAI_IMG_GEN:
+                log.verbose(f"Making AsyncAzureOpenAI client with endpoint: {backend.endpoint}")
                 if backend.endpoint is None:
                     msg = "Azure OpenAI endpoint is not set"
                     raise OpenAIClientFactoryError(msg)
