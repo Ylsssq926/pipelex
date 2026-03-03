@@ -44,6 +44,20 @@ class ImgGenWorkerFactory:
                     inference_model=inference_model,
                     reporting_delegate=reporting_delegate,
                 )
+            case "gateway_img_gen_pk":
+                from pipelex.plugins.gateway.gateway_factory import GatewayFactory  # noqa: PLC0415
+                from pipelex.plugins.gateway.gateway_img_gen_pk_worker import GatewayImgGenPkWorker  # noqa: PLC0415
+
+                img_gen_sdk_instance = plugin_sdk_registry.get_sdk_instance(plugin=plugin) or plugin_sdk_registry.set_sdk_instance(
+                    plugin=plugin,
+                    sdk_instance=GatewayFactory.make_portkey_client(backend=backend),
+                )
+
+                img_gen_worker = GatewayImgGenPkWorker(
+                    sdk_instance=img_gen_sdk_instance,
+                    inference_model=inference_model,
+                    reporting_delegate=reporting_delegate,
+                )
             case "fal":
                 if importlib.util.find_spec("fal_client") is None:
                     lib_name = "fal-client"
