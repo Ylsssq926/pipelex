@@ -243,7 +243,6 @@ def handle_build_validation_failure(exc: ValidateBundleError) -> NoReturn:
     raise typer.Exit(1) from exc
 
 
-
 def handle_telemetry_config_validation_error(exc: TelemetryConfigValidationError) -> NoReturn:
     """Handle and display TelemetryConfigValidationError with migration guidance.
 

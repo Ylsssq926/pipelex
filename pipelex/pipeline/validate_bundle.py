@@ -68,7 +68,6 @@ class ValidateBundleError(PipelexError):
         # Path to a saved .mthds file with the last bundle state (set when all fix attempts are exhausted)
         self.failed_bundle_path: str | None = None
 
-
         super().__init__(message)
 
     @property
