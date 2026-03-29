@@ -11,6 +11,7 @@ from typing_extensions import override
 from pipelex.cli.agent_cli.commands.check_model_cmd import agent_check_model_cmd
 from pipelex.cli.agent_cli.commands.concept_cmd import concept_cmd
 from pipelex.cli.agent_cli.commands.doctor_cmd import agent_doctor_cmd
+from pipelex.cli.agent_cli.commands.fix_cmd import fix_cmd
 from pipelex.cli.agent_cli.commands.fmt_cmd import fmt_cmd
 from pipelex.cli.agent_cli.commands.init_cmd import agent_init_cmd
 from pipelex.cli.agent_cli.commands.inputs.app import inputs_app
@@ -32,6 +33,7 @@ class PipelexAgentCLI(TyperGroup):
             "init",
             "run",
             "validate",
+            "fix",
             "fmt",
             "lint",
             "inputs",
@@ -123,6 +125,7 @@ def app_callback(
 app.command(name="init", help="Initialize Pipelex configuration (non-interactive)")(agent_init_cmd)
 app.add_typer(run_app, name="run", help="Execute a pipeline and output JSON results")
 app.add_typer(validate_app, name="validate", help="Validate a pipe, bundle, or all pipes and output JSON results")
+app.command(name="fix", help="Auto-fix deterministic issues in .mthds bundles")(fix_cmd)
 app.command(name="fmt", help="Format a .mthds, .toml, or .plx file in-place")(fmt_cmd)
 app.command(name="lint", help="Lint a .mthds, .toml, or .plx file")(lint_cmd)
 app.add_typer(inputs_app, name="inputs", help="Generate example input JSON for a pipe")
