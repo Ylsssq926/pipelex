@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, ClassVar
 
 import pytest
+from pydantic import ValidationError
 
 from pipelex.builder.concept.concept_spec import ConceptStructureSpecFieldType
 from pipelex.builder.operations.concept_ops import parse_concept_spec
@@ -42,6 +43,12 @@ class TestParseConceptSpec:
         result = parse_concept_spec(spec)
         assert result.concept_code == "Invoice"
 
+    def test_missing_concept_code_raises(self) -> None:
+        """Spec with no concept_code and no alias should raise ValidationError."""
+        spec: dict[str, Any] = {**self._BASE}
+        with pytest.raises(ValidationError):
+            parse_concept_spec(spec)
+
     # -- does not mutate caller's dict ------------------------------------
 
     def test_original_dict_unchanged(self) -> None:
@@ -63,6 +70,24 @@ class TestParseConceptSpec:
         assert result.structure is not None
         assert result.structure["title"].type == ConceptStructureSpecFieldType.TEXT
         assert result.structure["title"].description == "The title of the item"
+
+    def test_dict_field_without_type_defaults_to_text(self) -> None:
+        """When agent provides a dict field spec but omits 'type', it should default to text."""
+        spec: dict[str, Any] = {
+            "concept_code": "MatchAnalysis",
+            "description": "Analysis of CV-job match",
+            "structure": {
+                "matching_strengths": {"description": "Key areas where CV aligns", "required": True},
+                "gaps": {"description": "Areas where CV falls short", "required": True},
+                "summary": {"description": "Brief overall assessment"},
+            },
+        }
+        result = parse_concept_spec(spec)
+        assert result.structure is not None
+        for field_name in ("matching_strengths", "gaps", "summary"):
+            assert result.structure[field_name].type == ConceptStructureSpecFieldType.TEXT
+        assert result.structure["matching_strengths"].required is True
+        assert result.structure["summary"].required is False
 
     def test_mixed_string_and_dict_fields(self) -> None:
         spec: dict[str, Any] = {

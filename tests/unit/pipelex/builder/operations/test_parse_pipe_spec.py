@@ -88,23 +88,32 @@ class TestParsePipeSpec:
         result = parse_pipe_spec("PipeLLM", {**_BASE_LLM, "output": {"type": "Article", "extra": "ignored"}})
         assert result.output == "Article"
 
-    # -- steps/branches 'pipe' → 'pipe_code' alias -----------------------
+    # -- output field aliases -----------------------------------------------
 
-    def test_sequence_steps_pipe_alias(self) -> None:
-        spec: dict[str, Any] = {
-            "pipe_code": "my_seq",
-            "description": "A sequence",
-            "inputs": {"doc": "Document"},
-            "output": "Text",
-            "steps": [
-                {"pipe": "step_one", "result": "intermediate"},
-                {"pipe": "step_two", "result": "final"},
-            ],
-        }
-        result = parse_pipe_spec("PipeSequence", spec)
-        assert isinstance(result, PipeSequenceSpec)
-        assert result.steps[0].pipe_code == "step_one"
-        assert result.steps[1].pipe_code == "step_two"
+    @pytest.mark.parametrize("alias", ["output_concept", "output_type"])
+    def test_output_alias_accepted(self, alias: str) -> None:
+        """Each output alias resolves to the correct output value."""
+        spec = {key: val for key, val in _BASE_LLM.items() if key != "output"}
+        spec[alias] = "Article"
+        result = parse_pipe_spec("PipeLLM", spec)
+        assert result.output == "Article"
+
+    @pytest.mark.parametrize("alias", ["output_concept", "output_type"])
+    def test_output_alias_tried_first_when_canonical_present(self, alias: str) -> None:
+        """When both output and an alias exist, alias value is tried first."""
+        spec = {**_BASE_LLM, alias: "AliasValue"}
+        result = parse_pipe_spec("PipeLLM", spec)
+        assert result.output == "AliasValue"
+
+    def test_first_output_alias_wins(self) -> None:
+        """When multiple output aliases present without canonical, first in tuple order wins."""
+        spec = {key: val for key, val in _BASE_LLM.items() if key != "output"}
+        spec["output_type"] = "SecondAlias"
+        spec["output_concept"] = "FirstAlias"
+        result = parse_pipe_spec("PipeLLM", spec)
+        assert result.output == "FirstAlias"
+
+    # -- steps/branches 'pipe' → 'pipe_code' alias -----------------------
 
     def test_sequence_steps_canonical_pipe_code(self) -> None:
         spec: dict[str, Any] = {
@@ -118,7 +127,27 @@ class TestParsePipeSpec:
         assert isinstance(result, PipeSequenceSpec)
         assert result.steps[0].pipe_code == "step_one"
 
-    def test_parallel_branches_pipe_alias(self) -> None:
+    @pytest.mark.parametrize("alias", ["pipe", "pipe_ref", "the_pipe_code", "code", "name", "pipe_name"])
+    def test_sequence_steps_all_aliases(self, alias: str) -> None:
+        """All pipe_code aliases must work inside step dicts."""
+        spec: dict[str, Any] = {
+            "pipe_code": "my_seq",
+            "description": "A sequence",
+            "inputs": {"doc": "Document"},
+            "output": "Text",
+            "steps": [
+                {alias: "step_one", "result": "intermediate"},
+                {alias: "step_two", "result": "final"},
+            ],
+        }
+        result = parse_pipe_spec("PipeSequence", spec)
+        assert isinstance(result, PipeSequenceSpec)
+        assert result.steps[0].pipe_code == "step_one"
+        assert result.steps[1].pipe_code == "step_two"
+
+    @pytest.mark.parametrize("alias", ["pipe", "pipe_ref", "the_pipe_code", "code", "name", "pipe_name"])
+    def test_parallel_branches_all_aliases(self, alias: str) -> None:
+        """All pipe_code aliases must work inside branch dicts."""
         spec: dict[str, Any] = {
             "pipe_code": "my_par",
             "description": "Parallel branches",
@@ -126,14 +155,49 @@ class TestParsePipeSpec:
             "output": "Text",
             "add_each_output": True,
             "branches": [
-                {"pipe": "branch_a", "result": "result_a"},
-                {"pipe": "branch_b", "result": "result_b"},
+                {alias: "branch_a", "result": "result_a"},
+                {alias: "branch_b", "result": "result_b"},
             ],
         }
         result = parse_pipe_spec("PipeParallel", spec)
         assert isinstance(result, PipeParallelSpec)
         assert result.branches[0].pipe_code == "branch_a"
         assert result.branches[1].pipe_code == "branch_b"
+
+    # -- extraneous "inputs" in steps/branches silently dropped -----------
+
+    def test_sequence_steps_extraneous_inputs_dropped(self) -> None:
+        """Agents sometimes add 'inputs' to individual steps; these should be silently ignored."""
+        spec: dict[str, Any] = {
+            "pipe_code": "interview_prep",
+            "description": "Analyze CV-job match",
+            "inputs": {"cv": "Document", "job_offer": "Document"},
+            "output": "Text",
+            "steps": [
+                {"pipe": "extract_cv", "inputs": {"cv": "cv"}, "result": "cv_pages"},
+                {"pipe": "extract_job_offer", "inputs": {"job_offer": "job_offer"}, "result": "job_offer_pages"},
+                {"pipe": "analyze_match", "result": "match_analysis"},
+            ],
+        }
+        result = parse_pipe_spec("PipeSequence", spec)
+        assert isinstance(result, PipeSequenceSpec)
+        assert result.steps[0].pipe_code == "extract_cv"
+        assert result.steps[1].pipe_code == "extract_job_offer"
+
+    def test_parallel_branches_extraneous_inputs_dropped(self) -> None:
+        spec: dict[str, Any] = {
+            "pipe_code": "my_par",
+            "description": "Parallel branches",
+            "inputs": {"doc": "Document"},
+            "output": "Text",
+            "add_each_output": True,
+            "branches": [
+                {"pipe": "branch_a", "inputs": {"doc": "doc"}, "result": "result_a"},
+            ],
+        }
+        result = parse_pipe_spec("PipeParallel", spec)
+        assert isinstance(result, PipeParallelSpec)
+        assert result.branches[0].pipe_code == "branch_a"
 
     # -- PipeCondition expression alias -----------------------------------
 

@@ -8,8 +8,10 @@
 from typing import Any
 
 import tomlkit
+from pydantic import ValidationError
 from tomlkit.items import Table
 
+from pipelex import log
 from pipelex.builder.pipe.pipe_batch_spec import PipeBatchSpec
 from pipelex.builder.pipe.pipe_compose_spec import PipeComposeSpec
 from pipelex.builder.pipe.pipe_condition_spec import PipeConditionSpec
@@ -22,6 +24,35 @@ from pipelex.builder.pipe.pipe_search_spec import PipeSearchSpec
 from pipelex.builder.pipe.pipe_sequence_spec import PipeSequenceSpec
 from pipelex.builder.pipe.pipe_spec import PipeSpec
 from pipelex.builder.pipe.pipe_spec_map import pipe_type_to_spec_class
+
+# Aliases that agents may use instead of "pipe_code". First found is promoted when canonical key is absent; extras are dropped.
+_PIPE_CODE_ALIASES = ("pipe", "the_pipe_code", "code", "name", "pipe_name", "pipe_ref")
+
+# Aliases that agents may use instead of "output". First found is promoted when canonical key is absent; extras are dropped.
+_OUTPUT_ALIASES = ("output_concept", "output_type")
+
+
+def _normalize_sub_pipe_dict(data: dict[str, Any]) -> None:
+    """Normalize a step/branch dict: resolve pipe_code aliases and drop extraneous fields."""
+    _normalize_pipe_code_aliases(data)
+    # Agents sometimes add "inputs" to individual steps; drop with a warning.
+    if "inputs" in data:
+        log.warning(
+            f"Dropping unsupported 'inputs' field from step/branch dict "
+            f"(pipe_code={data.get('pipe_code', '?')}). "
+            f"Step-level inputs are not supported; inputs are inherited from the parent pipe."
+        )
+        data.pop("inputs")
+
+
+def _normalize_pipe_code_aliases(data: dict[str, Any]) -> None:
+    """Convert any alias of ``pipe_code`` to the canonical field name, in-place."""
+    for alias in _PIPE_CODE_ALIASES:
+        if alias in data:
+            if "pipe_code" not in data:
+                data["pipe_code"] = data.pop(alias)
+            else:
+                data.pop(alias)
 
 
 def parse_pipe_spec(pipe_type: str, spec_data: dict[str, Any]) -> PipeSpec:
@@ -51,22 +82,16 @@ def parse_pipe_spec(pipe_type: str, spec_data: dict[str, Any]) -> PipeSpec:
     # Add type to spec_data if not present
     spec_data["type"] = pipe_type
 
-    # Accept common aliases for "pipe_code"
-    for alias in ("the_pipe_code", "code", "name", "pipe_name", "pipe_ref"):
-        if alias in spec_data:
-            if "pipe_code" not in spec_data:
-                spec_data["pipe_code"] = spec_data.pop(alias)
-            else:
-                spec_data.pop(alias)
+    # Accept common aliases for "pipe_code" at the top level
+    _normalize_pipe_code_aliases(spec_data)
 
-    # Handle steps/branches conversion - need to convert pipe to pipe_code
-    # Deep-copy nested dicts to avoid mutating caller's nested structures
+    # Handle steps/branches conversion — normalize aliases and drop unknown fields.
+    # Deep-copy nested dicts to avoid mutating caller's nested structures.
     if "steps" in spec_data:
         converted_steps = []
         for step in spec_data["steps"]:
             step = dict(step)
-            if "pipe" in step and "pipe_code" not in step:
-                step["pipe_code"] = step.pop("pipe")
+            _normalize_sub_pipe_dict(step)
             converted_steps.append(step)
         spec_data["steps"] = converted_steps
 
@@ -74,8 +99,7 @@ def parse_pipe_spec(pipe_type: str, spec_data: dict[str, Any]) -> PipeSpec:
         converted_branches = []
         for branch in spec_data["branches"]:
             branch = dict(branch)
-            if "pipe" in branch and "pipe_code" not in branch:
-                branch["pipe_code"] = branch.pop("pipe")
+            _normalize_sub_pipe_dict(branch)
             converted_branches.append(branch)
         spec_data["branches"] = converted_branches
 
@@ -86,16 +110,43 @@ def parse_pipe_spec(pipe_type: str, spec_data: dict[str, Any]) -> PipeSpec:
         else:
             spec_data.pop("expression")
 
+    # Accept output aliases (e.g. "output_concept", "output_type") for "output".
+    # When both "output" and an alias coexist, try the alias value first (agents often put
+    # the correct concept name in the alias), falling back to the original "output" value.
+    output_fallback: Any | None = None
+    for output_alias in _OUTPUT_ALIASES:
+        if output_alias not in spec_data:
+            continue
+        alias_value = spec_data.pop(output_alias)
+        if "output" not in spec_data:
+            spec_data["output"] = alias_value
+        else:
+            output_fallback = spec_data["output"]
+            spec_data["output"] = alias_value
+        # First alias wins — drop any remaining aliases without using them.
+        for remaining_alias in _OUTPUT_ALIASES:
+            spec_data.pop(remaining_alias, None)
+        break
+
     # Accept output as dict → extract the concept string
     # Agents sometimes structure the output like inputs (as a dict).
     # Handle {"type": "ConceptName"} and single-item dicts like {"result": "Text"}.
     if "output" in spec_data and isinstance(spec_data["output"], dict):
         output_dict: dict[str, Any] = spec_data["output"]
-        if "type" in output_dict:
+        if "concept_ref" in output_dict:
+            spec_data["output"] = output_dict["concept_ref"]
+        elif "type" in output_dict:
             spec_data["output"] = output_dict["type"]
         elif len(output_dict) == 1:
             spec_data["output"] = next(iter(output_dict.values()))
 
+    # When an output alias conflicted with an existing "output", try the alias value first
+    # and fall back to the original value if validation fails.
+    if output_fallback is not None:
+        try:
+            return spec_class.model_validate(spec_data)
+        except ValidationError:
+            spec_data["output"] = output_fallback
     return spec_class.model_validate(spec_data)
 
 

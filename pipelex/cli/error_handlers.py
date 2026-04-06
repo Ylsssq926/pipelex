@@ -14,6 +14,7 @@ from pipelex.system.pipelex_service.exceptions import (
     GatewayApiKeyMissingError,
     GatewayDoNotTrackConflictError,
     GatewayTermsNotAcceptedError,
+    InferenceSetupRequiredError,
     RemoteConfigFetchError,
     RemoteConfigValidationError,
 )
@@ -239,6 +240,31 @@ def handle_build_validation_failure(exc: ValidateBundleError) -> NoReturn:
         "Breaking complex methods into smaller steps can also help."
     )
     console.print(f"[dim]Learn more: {URLs.documentation}[/dim]")
+    console.print(f"[dim]Join our Discord for help: {URLs.discord}[/dim]\n")
+    raise typer.Exit(1) from exc
+
+
+def handle_inference_setup_required_error(exc: InferenceSetupRequiredError) -> NoReturn:
+    """Handle and display InferenceSetupRequiredError with first-run guidance.
+
+    This error occurs on first run when no inference backend has been configured yet.
+
+    Args:
+        exc: The inference setup required error exception
+    """
+    console = get_console()
+    console.print("\n[bold yellow]⚠ First-time inference setup required[/bold yellow]\n")
+
+    console.print(
+        "This looks like your first time running a method with live inference.\nYou need to configure an inference backend before running.\n"
+    )
+
+    console.print("[bold green]💡 To get started:[/bold green]")
+    console.print("  • Run [cyan]pipelex init config[/cyan] for interactive setup")
+    console.print("  • Or run [cyan]pipelex-agent init[/cyan] with backend configuration")
+    console.print()
+
+    console.print(f"[dim]For more information: {URLs.documentation}[/dim]")
     console.print(f"[dim]Join our Discord for help: {URLs.discord}[/dim]\n")
     raise typer.Exit(1) from exc
 

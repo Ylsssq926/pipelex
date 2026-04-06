@@ -1,5 +1,61 @@
 # Changelog
 
+## [v0.23.5] - 2026-04-04
+
+### Added
+
+- **Gateway config**: Introduced `GatewayConfig` to bundle gateway model specs with AWS region, propagating it through the backend library so bedrock backends use the correct region.
+- **Config coverage tests**: Integration tests that validate one model per Portkey config for each model type (LLM, image gen, extract, search), with `all_configs_gw` test profile and `make ticc` target.
+- **nano-banana-2 model**: Added `gemini-3.1-flash-image-preview` as `nano-banana-2` with updated Google image gen costs.
+- **DeepSeek models on bedrock**: Added DeepSeek models to the bedrock backend configuration.
+
+### Changed
+
+- **Image gen deck aliases**: Updated aliases to nano-banana model variants and removed `flux-2-pro`.
+- **Remote config**: Bumped to v08.
+- **Gateway model docs**: Regenerated, removing retired models (claude-3.7-sonnet, deepseek-v3.1, deepseek-v3.2-speciale, flux-2-pro).
+
+### Fixed
+
+- **deepseek-v3.1 structured output**: Removed unsupported `structured` output capability from the bedrock deepseek-v3.1 model spec — the `bedrock_aioboto3` worker does not implement object generation, so structured calls would fail at runtime.
+
+## [v0.23.4] - 2026-04-02
+
+### Changed
+
+- **Pipe spec output alias**: Removed `output_type` alias from `parse_pipe_spec`, keeping only `output_concept` as the single alias for the `output` field. Simplified the alias resolution logic accordingly.
+
+## [v0.23.3] - 2026-04-02
+
+### Changed
+
+- **Pipe spec output aliases**: `parse_pipe_spec` now accepts `output_concept` and `output_type` as aliases for the `output` field, with smart fallback when both alias and canonical field are present.
+
+### Fixed
+
+- **Gateway terms check**: Terms acceptance is now only required for inference operations, not for read-only operations like model spec fetching during validation.
+
+## [v0.23.2] - 2026-03-30
+
+### Changed
+
+- **Claude Code plugin install command**: Fixed as → `/plugin install mthds@mthds-plugins` across README and docs.
+- **Claude Code plugin reload instructions**: Added `/reload-plugins` as the primary method to activate the plugin, with exit/reopen as fallback.
+
+## [v0.23.1] - 2026-03-30
+
+### Changed
+
+- **Concept spec: `concept_code` replaces `the_concept_code`** as the canonical field name in concept specs and working memory factory.
+- **Shared spec parsing**: `concept_cmd` and `pipe_cmd` now delegate to the shared `parse_concept_spec` and `parse_pipe_spec` helpers, removing stale duplicate parsing logic while preserving compatibility and fixing alias/dict-mutation edge cases.
+- **`concept_ref` / `pipe_ref` aliases**: `parse_concept_spec` and `parse_pipe_spec` now accept `concept_ref` and `pipe_ref` as input aliases for better AI-agent compatibility.
+- **Replace `pip` with `uv`** in install commands across config files and error messages.
+- **Docs links**: Updated mthds.ai links to include `/latest/` path.
+
+### Fixed
+
+- **Concept alias bug**: Concept alias handling previously listed `concept_code` as an alias instead of `the_concept_code`, causing valid input to be silently dropped. Fixed by the new shared `parse_concept_spec` helper.
+
 ## [v0.23.0] - 2026-03-29
 
 ### Added
